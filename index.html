@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Broń Komputer - Łap Antywirusy! + Skiny</title>
+<style>
+    * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background: linear-gradient(180deg,#0f172a,#020617); display:flex; flex-direction:column; align-items:center; font-family:'Segoe UI',sans-serif; color:white; padding:10px; }
+  .card { background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:10px 14px; width:100%; max-width:430px; backdrop-filter:blur(8px); }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .logo { font-size:19px; font-weight:800; line-height:1.1; }
+  .logo span { color:#22d3ee; }
+  .stats { display:flex; gap:6px; }
+  .pill { background:#fff; color:#111; border-radius:999px; padding:6px 10px; font-weight:700; font-size:13px; white-space:nowrap; }
+  .pill.combo { background:#a5f3fc; }
+  .hearts { font-size:16px; letter-spacing:2px; margin-top:6px; }
+  canvas { width:100%; max-width:400px; height:auto; aspect-ratio:4/5; display:block; margin:10px auto 0; background: linear-gradient(180deg,#0ea5e9 0%, #38bdf8 35%, #1e293b 70%, #0f172a 100%); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+  .controls { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+  button, .wa-btn { padding:10px 16px; border-radius:999px; border:none; font-weight:800; cursor:pointer; font-size:14px; text-decoration:none; display:inline-block; text-align:center; }
+  .primary { background:#22d3ee; color:#111; }
+  .ghost { background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.2); }
+  .wa-btn { background:#25D366; color:#fff; box-shadow:0 4px 14px rgba(37,211,102,0.4); }
+  .wa-box { margin-top:12px; background:rgba(37,211,102,0.12); border:1px solid rgba(37,211,102,0.35); border-radius:12px; padding:10px 12px; text-align:center; }
+  .wa-box p { margin:0 0 8px; font-size:13px; opacity:0.9; line-height:1.4; }
+  .hint { font-size:12.5px; opacity:0.75; text-align:center; line-height:1.5; margin:8px 0 0; }
+  .touch { display:none; gap:8px; margin-top:10px; width:100%; }
+  .touch button { flex:1; padding:16px; font-size:20px; background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.25); }
+  @media (max-width:600px){ .touch{display:flex;} }
+  .skins { margin-top:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:10px; }
+  .skins h3 { margin:0 0 8px; font-size:14px; text-align:center; }
+  .skin-row { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .skin-btn { padding:8px 10px; font-size:12px; border-radius:12px; background:rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer; }
+  .skin-btn.active { background:#22d3ee; color:#111; border-color:#22d3ee; }
+  .skin-btn.locked { opacity:0.55; }
+  .skin-info { text-align:center; font-size:12px; opacity:0.85; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <div class="logo">💻 BROŃ KOMPUTER<br><span>VS WIRUSY</span></div>
+    <div class="stats">
+      <div class="pill">⭐ <span id="score">0</span></div>
+      <div class="pill combo">🔥 x<span id="combo">1</span></div>
+    </div>
+  </div>
+  <div class="hearts" id="hearts">❤️❤️❤️❤️❤️</div>
+  <canvas id="game" width="400" height="500"></canvas>
+
+  <div class="skins">
+    <h3>🎨 Wybierz skina</h3>
+    <div class="skin-row" id="skinRow"></div>
+    <div class="skin-info" id="skinInfo"></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" onclick="resetGame()">↻ Restart [SPACJA]</button>
+    <button class="ghost" id="soundBtn" onclick="toggleSound()">🔊 Dźwięk</button>
+    <button class="ghost" onclick="toggleMusic()">🎵 Muzyka</button>
+  </div>
+  <div class="touch">
+    <button ontouchstart="holdLeft=true" ontouchend="holdLeft=false">⬅️</button>
+    <button ontouchstart="holdRight=true" ontouchend="holdRight=false">➡️</button>
+  </div>
+  <div class="wa-box">
+    <p>Podoba Ci się gra? Obserwuj mój kanał po więcej!</p>
+    <a class="wa-btn" href="https://whatsapp.com/channel/0029VbE8tys9MF8u9ZxpVy3s" target="_blank" rel="noopener">💬 Obserwuj na WhatsApp →</a>
+  </div>
+  <p class="hint">Łap: 🛡️ antywirus +10, 📁 plik +10, ⚡ bonus +30<br>UNIKAJ: 🦠 wirus = -1 życie! • Komputer: ← → / A D • SPACJA = restart</p>
+</div>
+
+<script>
+const c = document.getElementById('game');
+const ctx = c.getContext('2d');
+let score, lives, combo, comboStreak, gameOver, player, items, particles, keys, holdLeft, holdRight, frame;
+let soundOn = true, musicOn = false, audioCtx = null, musicTimer = null;
+let bestScore = parseInt(localStorage.getItem('pc_best')||'0');
+
+// --- SKINY ---
+const SKINS = [
+  { id:'classic', name:'💻 Klasyczny', unlock:0, body:'#111827', screen:'#22d3ee', label:'🛡️ PC', sub:'100% OK', subColor:'#4ade80' },
+  { id:'gamer', name:'🎮 Gamer RGB', unlock:0, body:'#7c3aed', screen:'#f472b6', label:'🎮 RGB', sub:'OVERDRIVE', subColor:'#facc15' },
+  { id:'laptop', name:'💻 Laptop', unlock:0, body:'#334155', screen:'#38bdf8', label:'💻 LAP', sub:'WI-FI ON', subColor:'#a5f3fc' },
+  { id:'hacker', name:'👾 Haker', unlock:100, body:'#052e16', screen:'#22c55e', label:'👾 HACK', sub:'FIREWALL', subColor:'#22c55e' },
+  { id:'gold', name:'👑 Złoty PC', unlock:300, body:'#78350f', screen:'#fbbf24', label:'👑 GOLD', sub:'PRO 300+', subColor:'#fde68a' },
+];
+let currentSkinId = localStorage.getItem('pc_skin') || 'classic';
+function getSkin(){ return SKINS.find(s=>s.id===currentSkinId) || SKINS[0]; }
+function isUnlocked(s){ return bestScore >= s.unlock; }
+function renderSkins(){
+  const row = document.getElementById('skinRow');
+  row.innerHTML = '';
+  SKINS.forEach(s=>{
+    const b = document.createElement('button');
+    const locked = !isUnlocked(s);
+    b.className = 'skin-btn' + (s.id===currentSkinId ? ' active' : '') + (locked ? ' locked' : '');
+    b.textContent = locked ? s.name + ' 🔒 ' + s.unlock + 'pkt' : s.name;
+    b.onclick = ()=>{
+      if(locked){ alert('Odblokuj: zdobądź ' + s.unlock + ' pkt w jednej grze! Twój rekord: ' + bestScore); return; }
+      currentSkinId = s.id;
+      localStorage.setItem('pc_skin', s.id);
+      renderSkins();
+    };
+    row.appendChild(b);
+  });
+  const sk = getSkin();
+  document.getElementById('skinInfo').textContent = 'Aktywny: ' + sk.name + ' • Rekord: ' + bestScore + ' pkt • Złoty od 300 pkt, Haker od 100 pkt';
+}
+renderSkins();
+
+function getAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, dur, type='sine', vol=0.12, slide=null, delay=0){
+  if(!soundOn) return;
+  try{
+    const ac = getAudio();
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if(slide) o.frequency.exponentialRampToValueAtTime(slide, t+dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+dur);
+  }catch(e){}
+}
+const sGood = () => { tone(520,0.08,'sine',0.18); tone(780,0.12,'sine',0.18, null, 0.06); };
+const sBonus = () => { tone(660,0.08,'sine',0.18); tone(880,0.08,'sine',0.18,null,0.07); tone(1100,0.15,'sine',0.18,null,0.14); };
+const sBad = () => tone(180,0.3,'sawtooth',0.12,90);
+const sOver = () => { tone(400,0.15,'triangle',0.18); tone(300,0.15,'triangle',0.18,null,0.15); tone(180,0.35,'triangle',0.2,null,0.3); };
+const sStart = () => { tone(440,0.1,'sine',0.15); tone(660,0.12,'sine',0.15,null,0.1); };
+function toggleSound(){ soundOn=!soundOn; document.getElementById('soundBtn').textContent = soundOn?'🔊 Dźwięk':'🔇 Cicho'; if(soundOn) sGood(); }
+function toggleMusic(){
+  musicOn=!musicOn;
+  if(musicOn){ musicTimer=setInterval(()=>{ if(!gameOver) tone([523,659,784,659][Math.floor(Math.random()*4)],0.18,'sine',0.04); }, 500); }
+  else clearInterval(musicTimer);
+}
+function resetGame(){
+  score=0; combo=1; comboStreak=0; lives=5; gameOver=false; frame=0;
+  player={x:155, y:435, w:90, h:58, speed:8};
+  items=[]; particles=[]; keys={}; holdLeft=false; holdRight=false;
+  document.getElementById('score').textContent=score;
+  document.getElementById('combo').textContent=combo;
+  updateHearts(); sStart();
+}
+function updateHearts(){ document.getElementById('hearts').textContent = '❤️'.repeat(lives) + '🤍'.repeat(5-lives); }
+resetGame();
+
+document.addEventListener('keydown', e=>{
+  getAudio();
+  if(e.code==='Space'){ e.preventDefault(); if(gameOver) resetGame(); }
+  if(e.key==='m'||e.key==='M') toggleSound();
+  if(e.key==='n'||e.key==='N') toggleMusic();
+  keys[e.key]=true;
+});
+document.addEventListener('keyup', e=> keys[e.key]=false);
+function moveTouch(e){ e.preventDefault(); getAudio(); let x=e.touches[0].clientX - c.getBoundingClientRect().left; player.x=Math.max(0,Math.min(400-player.w, x-player.w/2)); }
+c.addEventListener('touchstart', moveTouch);
+c.addEventListener('touchmove', moveTouch);
+
+function spawnItem(){
+  const r = Math.random();
+  let type = 'good';
+  if(r < 0.32) type = 'virus';
+  else if(r < 0.40) type = 'bonus';
+  else if(r < 0.70) type = 'file';
+  else type = 'shield';
+  items.push({x:Math.random()*360, y:-30, speed:0.9 + Math.random()*0.6 + score*0.004, rot:Math.random()*6, type});
+}
+function addParticles(x,y,color){
+  for(let i=0;i<10;i++) particles.push({x,y,vx:(Math.random()-0.5)*3,vy:Math.random()*-2-1,life:30,col:color});
+}
+function drawBackground(){
+  ctx.fillStyle='rgba(255,255,255,0.08)';
+  for(let y=0;y<500;y+=40) ctx.fillRect(0,y,400,1);
+  for(let x=0;x<400;x+=40) ctx.fillRect(x,0,1,500);
+  ctx.font='28px sans-serif'; ctx.fillStyle='white';
+  ctx.fillText('☁️', 20, 50); ctx.fillText('💾', 340, 80); ctx.fillText('🌐', 180, 40);
+  ctx.fillStyle='#1e293b'; ctx.fillRect(0,475,400,25);
+  ctx.fillStyle='#22d3ee'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('SYSTEM: CHRONIONY • FIREWALL: ON', 200, 492);
+  ctx.textAlign='left';
+}
+function drawPlayer(){
+  const sk = getSkin();
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.35)'; ctx.shadowBlur=8; ctx.shadowOffsetY=4;
+  ctx.fillStyle=sk.body; ctx.fillRect(player.x, player.y, player.w, 44);
+  ctx.fillStyle=sk.screen; ctx.fillRect(player.x+4, player.y+4, player.w-8, 36);
+  ctx.fillStyle='#0f172a'; ctx.fillRect(player.x+8, player.y+8, player.w-16, 28);
+  ctx.fillStyle=sk.screen; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(sk.label, player.x+player.w/2, player.y+20);
+  ctx.fillStyle=sk.subColor; ctx.font='8px sans-serif';
+  ctx.fillText(sk.sub, player.x+player.w/2, player.y+32);
+  ctx.fillStyle='#374151'; ctx.fillRect(player.x+player.w/2-10, player.y+44, 20, 10);
+  ctx.fillRect(player.x+player.w/2-25, player.y+54, 50, 4);
+  ctx.restore();
+}
+function drawItem(it){
+  ctx.save(); ctx.translate(it.x+20, it.y+20); ctx.rotate(it.rot*0.2);
+  ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  let emoji = '🛡️';
+  if(it.type==='virus') emoji='🦠';
+  if(it.type==='file') emoji='📁';
+  if(it.type==='bonus') emoji='⚡';
+  if(it.type==='virus'){ ctx.shadowColor='red'; ctx.shadowBlur=12; }
+  if(it.type==='bonus'){ ctx.shadowColor='yellow'; ctx.shadowBlur=12; }
+  ctx.fillText(emoji, 0, 0);
+  ctx.restore();
+}
+function update(){
+  if(gameOver) return; frame++;
+  if(keys['ArrowLeft']||keys['a']||keys['A']||holdLeft) player.x-=player.speed;
+  if(keys['ArrowRight']||keys['d']||keys['D']||holdRight) player.x+=player.speed;
+  player.x=Math.max(0,Math.min(400-player.w,player.x));
+  if(frame%80===0) spawnItem();
+  for(let i=items.length-1;i>=0;i--){
+    let it=items[i]; it.y+=it.speed; it.rot+=0.02;
+    if(it.y+30 > player.y && it.y < player.y+player.h+8 && it.x+40 > player.x-8 && it.x < player.x+player.w+8){
+      if(it.type==='virus'){
+        lives--; combo=1; comboStreak=0;
+        document.getElementById('combo').textContent=combo;
+        updateHearts(); addParticles(it.x+20, it.y+10, '#ef4444'); sBad();
+        if(lives<=0){ gameOver=true; sOver(); if(score>bestScore){ bestScore=score; localStorage.setItem('pc_best', String(bestScore)); renderSkins(); } }
+      } else {
+        comboStreak++;
+        if(comboStreak>=6) combo=3; else if(comboStreak>=3) combo=2; else combo=1;
+        let pts = it.type==='bonus' ? 30 : 10;
+        score += pts*combo;
+        document.getElementById('score').textContent=score;
+        document.getElementById('combo').textContent=combo;
+        addParticles(it.x+20, it.y+10, it.type==='bonus'?'#facc15':'#22d3ee');
+        if(it.type==='bonus') sBonus(); else sGood();
+      }
+      items.splice(i,1); continue;
+    }
+    if(it.y>500){ items.splice(i,1); }
+  }
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life--; });
+  particles=particles.filter(p=>p.life>0);
+}
+function draw(){
+  ctx.clearRect(0,0,400,500);
+  drawBackground();
+  if(gameOver){
+    ctx.fillStyle='rgba(2,6,23,0.78)'; ctx.fillRect(0,0,400,500);
+    ctx.fillStyle='white'; ctx.textAlign='center';
+    ctx.font='800 26px sans-serif'; ctx.fillText('💥 KOMPUTER ZAINFEKOWANY!',200,210);
+    ctx.font='18px sans-serif'; ctx.fillText('Wynik: '+score+' • Rekord: '+bestScore,200,245);
+    ctx.font='800 15px sans-serif'; ctx.fillStyle='#22d3ee';
+    ctx.fillText('Naciśnij SPACJĘ, żeby naprawić PC',200,285);
+    ctx.fillStyle='white'; ctx.font='13px sans-serif';
+    ctx.fillText('Tip: łap 🛡️ i 📁, unikaj 🦠',200,310);
+    ctx.fillText('Obserwuj kanał ⬇️ pod grą!',200,332);
+    ctx.textAlign='left';
+  } else {
+    drawPlayer(); items.forEach(drawItem);
+    particles.forEach(p=>{ ctx.fillStyle=p.col; ctx.globalAlpha=p.life/30; ctx.fillRect(p.x,p.y,5,5); ctx.globalAlpha=1; });
+    ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(20,12,100,8);
+    ctx.fillStyle='#22d3ee'; ctx.fillRect(20,12, Math.min(100, comboStreak*16), 8);
+  }
+  requestAnimationFrame(()=>{ update(); draw(); });
+}
+draw();
+</script>
+</body>
+</html>
